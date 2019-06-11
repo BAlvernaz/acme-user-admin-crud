@@ -126,12 +126,12 @@
         return (
           <div id="editContainer">
             <div>
-              <h1>Create User</h1>
+              <h1>Edit User</h1>
             </div>
             <div id="editConatiner">
               <form>
                 <label htmlFor="name">
-                  New User:
+                  Edit User:
                   <input
                     type="text"
                     name="name"
@@ -147,12 +147,15 @@
                     name="admin"
                     id="checkbox"
                     onChange={props.toggle}
+                    checked={!!props.admin}
                   />
                 </label>
-                <button type="submit" >
-                  Edit User:
+                <button type="submit" onClick={props.handleEdit}>
+                  Edit User
                 </button>
-                <button type="submit" onClick={props.handleDelete}>Delete User</button>
+                <button type="submit" onClick={props.handleDelete}>
+                  Delete User
+                </button>
               </form>
             </div>
           </div>
@@ -184,6 +187,7 @@
                     name="admin"
                     id="checkbox"
                     onChange={props.toggle}
+
                   />
                 </label>
                 <button type="submit" onClick={props.handleSubmit}>
@@ -195,27 +199,28 @@
         );
       };
 
-      const UsersList = props => {
-        const { users } = props;
-        console.log(props);
-
-        return users.map((user, idx) => (
-          <div key={idx}>
-            <Link to={`/users/${idx}`}>{user.name}</Link>
-          </div>
-        ));
-      };
-
       class EditUsers extends React.Component {
-        constructor() {
-          super();
+        constructor(props) {
+          super(props);
           this.state = {
             name: "",
-            admin: ""
+            admin: "",
+            id: props.match.params.userId
           };
           this.toggle = this.toggle.bind(this);
           this.onChange = this.onChange.bind(this);
-          this.handleDelete = this.handleDelete.bind(this)
+          this.handleDelete = this.handleDelete.bind(this);
+          this.handleEdit = this.handleEdit.bind(this);
+        }
+
+        componentDidMount() {
+          const user = this.props.users.find(
+            user => user.id === this.props.match.params.userId
+          );
+          this.setState({
+            name: user.name,
+            admin: user.admin
+          });
         }
 
         onChange(ev) {
@@ -228,16 +233,26 @@
           this.setState({
             admin: ev.target.checked
           });
-
         }
         handleDelete(ev) {
-          console.log(this.state)
+          ev.preventDefault();
+          const { users } = this.props;
+          const delUser = users.find(
+            user => user.id === this.props.match.params.userId
+          );
+          this.props.deleteUser(delUser);
         }
 
+        handleEdit(ev) {
+          ev.preventDefault();
+          const user = this.state;
+          this.props.editUser(user);
+          console.log(user)
+        }
 
         render() {
           const { name, admin } = this.state;
-          const { onChange, toggle, handleDelete } = this;
+          const { onChange, toggle, handleDelete, handleEdit } = this;
           const { users } = this.props;
           return (
             <div>
@@ -248,7 +263,8 @@
                 onChange={onChange}
                 toggle={toggle}
                 handleDelete={handleDelete}
-              />>
+                handleEdit={handleEdit}
+              />
             </div>
           );
         }
@@ -299,7 +315,6 @@
                 toggle={toggle}
                 handleSubmit={handleSubmit}
               />
-              <UsersList users={users} />
             </div>
           );
         }
@@ -312,32 +327,70 @@
             users: []
           };
           this.createUser = this.createUser.bind(this);
-        }
-
-        compnentDidUpdate(prevProps){
-          if(prevProps.match.params.userId !== this.props.match.params.userId)
-          db.read().then(users => this.setState({ users }));
+          this.deleteUser = this.deleteUser.bind(this);
+          this.editUser = this.editUser.bind(this);
         }
 
         componentDidMount() {
           db.read().then(users => this.setState({ users }));
         }
 
+        componentDidUpdate(prevProps) {
+          if (
+            prevProps.match.params.userId !== this.props.match.params.userId
+          ) {
+            db.read().then(users => this.setState({ users }));
+          }
+        }
+
         createUser(user) {
           db.create(user);
-          const { users } = this.state;
-          this.setState([...users, user]);
+          this.setState(oldState => ({
+            users: [...oldState.users, user]
+          }));
+          window.location.hash = "/users";
+        }
+        deleteUser(user) {
+          db.destroy(user);
+          this.setState(oldState => ({
+            users: oldState.users.filter(_user => _user.id !== user.id)
+          }));
+          window.location.hash = "/users";
+        }
+
+        editUser(user) {
+          db.update(user);
+          window.location.hash = "/users"
         }
 
         render() {
           const { users } = this.state;
-          const { createUser } = this;
+          const { createUser, deleteUser, editUser } = this;
           return (
             <div>
               <div>
                 <h1>Users</h1>
               </div>
               <CreateUsers users={users} createUser={createUser} />
+              <div>
+                {users.map((user, idx) => (
+                  <div key={user.id}>
+                    <Link to={`/users/${user.id}`}>{user.name}</Link>
+                    {this.props.match.params.userId &&
+                    user.id === this.props.match.params.userId ? (
+                      <EditUsers
+                        users={users}
+                        deleteUser={deleteUser}
+                        editUser={editUser}
+                        {...this.props}
+                      />
+                    ) : (
+                      ""
+                    )}
+                    <hr />
+                  </div>
+                ))}
+              </div>
             </div>
           );
         }
@@ -352,7 +405,7 @@
               </div>
               <Route exact path="/" component={Home} />
               <Route exact path="/users" component={Users} />
-              <Route path="/users/:userId" component={EditUsers} />
+              <Route path="/users/:userId" component={Users} />
             </HashRouter>
           );
         }
